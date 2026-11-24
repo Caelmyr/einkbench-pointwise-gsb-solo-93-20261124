@@ -1,6 +1,6 @@
 const el = id => document.getElementById(id);
 const state = {batch: null, settings: null, report: null, view: "capture", mode: "", corner: null, point: null,
-  imageObject: null, measurements: [], imageSerial: 0, measurementSerial: 0};
+  imageObject: null, measurements: [], imageSerial: 0, measurementSerial: 0, pairStats: null};
 
 function notice(text, error = false) {
   el("status").textContent = text;
@@ -33,6 +33,13 @@ const base = () => "/batches/" + state.batch.id;
 const target = () => state.report?.batch ?? state.batch;
 const suffix = () => state.report ? "?report=" + state.report.id : "";
 const active = () => target().frames.find(shot => shot.id === state.settings.capture);
+const paired = () => Boolean(state.settings.pair?.first && state.settings.pair?.second);
+function pairShot(field) {
+  return target().frames.find(shot => shot.id === state.settings.pair?.[field]);
+}
+function pairLabel(shot) {
+  return shot ? frameLabel(shot) : "Not chosen";
+}
 function options(select, values, current, blank) {
   select.replaceChildren(new Option(blank, ""));
   for (const [key, label] of values) select.add(new Option(label, key));
@@ -48,7 +55,9 @@ async function chooseBatch(batch) {
   state.settings = structuredClone(batch.settings);
   state.mode = "";
   state.corner = state.point = null;
+  state.pairStats = null;
   el("probeRead").textContent = "";
+  el("pairRead").textContent = "";
   localStorage.setItem("inkbench-batch", batch.id);
   await refreshList();
   await render();
@@ -82,6 +91,7 @@ function displayControls() {
   el("original").href = "/ink" + source + (state.report ? suffix() + "&download" : "?download");
   el("original").textContent = shot ? "Download capture" : "Download reference";
   options(el("reports"), state.batch.reports.map(report => [report.id, report.name]), state.report?.id, "Current setup");
+  renderPair();
   el("reportLinks").hidden = state.report === null;
   if (state.report) {
     const path = "/ink" + base() + "/reports/" + state.report.id;
@@ -124,13 +134,26 @@ function renderZones() {
   el("zones").replaceChildren(...entries);
 }
 
+function renderPair() {
+  const frames = target().frames;
+  const pair = state.settings.pair;
+  options(el("pairFirst"), frames.map(shot => [shot.id, frameLabel(shot)]), pair?.first, "Choose the first photo");
+  options(el("pairSecond"), frames.map(shot => [shot.id, frameLabel(shot)]), pair?.second, "Choose the opposite photo");
+  for (const control of [el("pairFirst"), el("pairSecond")]) control.disabled = state.report !== null;
+  const stats = state.pairStats;
+  el("pairStats").textContent = stats ?
+    `${stats.ghost_pixels.toLocaleString()} px · ${stats.patches} patch${stats.patches === 1 ? "" : "es"} · noise ${stats.noise} DN` : "";
+}
+
 function renderMode() {
-  el("board").classList.toggle("active", Boolean(state.mode));
+  el("board").classList.toggle("active", Boolean(state.mode) || state.view === "pair");
   el("mark").setAttribute("aria-pressed", state.mode === "zone");
   el("probe").setAttribute("aria-pressed", state.mode === "probe");
   const hint = state.mode === "zone"
     ? (state.corner ? "Select the opposite corner." : "Select the first corner.")
-    : state.mode === "probe" ? "Select a pixel in the image." : "Mark two corners to define an inspection zone.";
+    : state.view === "pair" && paired()
+      ? "Click any pixel in the pair view to read it in both originals."
+      : state.mode === "probe" ? "Select a pixel in the image." : "Mark two corners to define an inspection zone.";
   el("modeHint").textContent = hint;
   drawMarks();
 }
@@ -163,21 +186,37 @@ async function showImage() {
   const requested = ++state.imageSerial;
   const shot = active();
   const mode = !shot ? "reference" : state.view;
-  const url = mode === "residual" ?
-    URL.createObjectURL(await request(base() + "/map" + suffix(), "POST", {settings: state.settings})) :
-    "/ink" + base() + (mode === "reference" ? "/reference.png" : "/captures/" + shot.id + ".png") + suffix();
+  if (mode === "pair" && !paired()) {
+    state.pairStats = null;
+    renderPair();
+    notice("Choose the two opposite-pattern photos under Opposite pair.", true);
+    return;
+  }
+  const url =
+    mode === "pair" ? URL.createObjectURL(await request(base() + "/pair/map" + suffix(), "POST", {settings: state.settings})) :
+    mode === "residual" ?
+      URL.createObjectURL(await request(base() + "/map" + suffix(), "POST", {settings: state.settings})) :
+      "/ink" + base() + (mode === "reference" ? "/reference.png" : "/captures/" + shot.id + ".png") + suffix();
   if (requested !== state.imageSerial) {
-    if (mode === "residual") URL.revokeObjectURL(url);
+    if (mode === "residual" || mode === "pair") URL.revokeObjectURL(url);
     return;
   }
   if (state.imageObject) URL.revokeObjectURL(state.imageObject);
-  state.imageObject = mode === "residual" ? url : null;
+  state.imageObject = mode === "residual" || mode === "pair" ? url : null;
   el("image").src = url;
   for (const button of document.querySelectorAll("[data-view]")) {
     button.disabled = mode === "reference" && !shot && button.dataset.view !== "reference";
     button.setAttribute("aria-pressed", button.dataset.view === mode);
   }
+  if (mode === "pair") await pairStats();
   drawMarks();
+}
+
+async function pairStats() {
+  if (!paired()) return null;
+  state.pairStats = await request(base() + "/pair/measure" + suffix(), "POST", {settings: state.settings});
+  renderPair();
+  return state.pairStats;
 }
 
 async function measure() {
@@ -271,24 +310,63 @@ async function render() { displayControls(); await inspect(); }
 async function selectCapture(value) {
   state.settings.capture = value || null;
   el("probeRead").textContent = "";
+  el("pairRead").textContent = "";
   state.point = null;
   displayControls();
   showTable();
   await showImage();
 }
 
+function pairReadout(point, result) {
+  const format = rgb => rgb.join(", ");
+  const direction = !result.reversed ? "same direction in both photos" :
+    result.identified ? "reverses between the photos" :
+    result.dark_in_both ? "dark in both" : result.below_faint ? "below blank noise" : "isolated, not painted";
+  el("pairRead").innerHTML = "";
+  const list = document.createElement("dl");
+  const rows = [
+    ["Pixel", point.join(", ")],
+    ["First photo", `${format(result.first_rgb)} · L ${result.first_level} · ${result.first_residual > 0 ? "+" : ""}${result.first_residual} DN vs white`],
+    ["Second photo", `${format(result.second_rgb)} · L ${result.second_level} · ${result.second_residual > 0 ? "+" : ""}${result.second_residual} DN vs white`],
+    ["White", `${format(result.reference_rgb)} · L ${result.reference_level}`],
+    ["Reading", `${result.anti > 0 ? "+" : ""}${result.anti} DN anti-phase · shared ${result.common > 0 ? "+" : ""}${result.common} DN · ${direction}${result.identified ? " · painted" : ""}`],
+  ];
+  for (const [term, value] of rows) {
+    const dt = document.createElement("dt");
+    dt.textContent = term;
+    const dd = document.createElement("dd");
+    dd.textContent = value;
+    list.append(dt, dd);
+  }
+  el("pairRead").append(list);
+}
+
+async function pairProbe(point) {
+  const result = await request(base() + "/pair/point" + suffix(), "POST",
+    {pair: state.settings.pair, zones: state.settings.zones, limit: state.settings.limit, point});
+  pairReadout(point, result);
+}
+
 el("image").onclick = handle(async event => {
-  if (!state.mode) return;
+  const pairView = state.view === "pair" && state.mode !== "zone";
+  if (!state.mode && !pairView) return;
   const image = event.currentTarget.getBoundingClientRect();
   const {width, height} = target();
   const point = [
     Math.min(width - 1, Math.max(0, Math.floor((event.clientX - image.left) * width / image.width))),
     Math.min(height - 1, Math.max(0, Math.floor((event.clientY - image.top) * height / image.height))),
   ];
+  if (pairView) {
+    state.point = point;
+    if (!paired()) throw new Error("Choose the two opposite-pattern photos first.");
+    await pairProbe(point);
+    drawMarks();
+    return;
+  }
   if (state.mode === "probe") {
+    state.point = point;
     const source = active();
     const result = await request(base() + "/point" + suffix(), "POST", {capture: source.id, point});
-    state.point = point;
     el("probeRead").textContent = `${point.join(", ")} · capture RGB ${result.capture_rgb.join(", ")} · reference RGB ${result.reference_rgb.join(", ")} · residual ${result.residual} DN`;
   } else if (state.corner) {
     const [x, y] = state.corner;
@@ -311,6 +389,22 @@ el("mark").onclick = handle(() => {
   state.corner = null;
   renderMode();
 });
+for (const [field, select] of [["first", "pairFirst"], ["second", "pairSecond"]]) {
+  el(select).onchange = handle(async event => {
+    const first = field === "first" ? event.target.value : el("pairFirst").value;
+    const second = field === "second" ? event.target.value : el("pairSecond").value;
+    state.settings.pair = first && second ? {first, second} : null;
+    if (first && first === second) {
+      state.settings.pair = null;
+      renderPair();
+      throw new Error("Choose two different photos for the pair.");
+    }
+    state.pairStats = null;
+    el("pairRead").textContent = "";
+    renderPair();
+    if (state.view === "pair") await showImage();
+  });
+}
 el("probe").onclick = () => {
   state.mode = state.mode === "probe" ? "" : "probe";
   state.corner = null;
@@ -333,6 +427,7 @@ document.querySelectorAll("[data-view]").forEach(button => {
   button.onclick = handle(async () => {
     state.view = button.dataset.view;
     await showImage();
+    renderMode();
   });
 });
 el("demo").onclick = handle(async () => {
@@ -348,7 +443,9 @@ el("reports").onchange = handle(async event => {
   state.settings = structuredClone(target().settings);
   state.corner = state.point = null;
   state.mode = "";
+  state.pairStats = null;
   el("probeRead").textContent = "";
+  el("pairRead").textContent = "";
   await render();
 });
 el("save").onclick = handle(async () => {

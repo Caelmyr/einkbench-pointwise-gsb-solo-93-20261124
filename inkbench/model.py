@@ -76,7 +76,24 @@ def settings(record, value):
         "limit": number(data.get("limit", 8), 1, 255, "Residual threshold"),
         "delay": number(data.get("delay", 400), 0, 60000, "Current wait setting", True),
         "map_gain": number(data.get("map_gain", 5), 1, 20, "Map contrast"),
+        "pair": pair(record, data.get("pair")),
     }
+
+
+def pair(record, value):
+    if value is None:
+        return None
+    data = document(value)
+    chosen = []
+    for field in ("first", "second"):
+        frame_id = data.get(field)
+        if frame_id is None:
+            raise Invalid("Choose both photos of the opposite-pattern pair.")
+        find_frame(record, frame_id)
+        chosen.append(frame_id)
+    if chosen[0] == chosen[1]:
+        raise Invalid("Choose two different photos for the pair.")
+    return {"first": chosen[0], "second": chosen[1]}
 
 
 def find_frame(record, frame_id):

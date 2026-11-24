@@ -47,6 +47,14 @@ figure.active img { cursor: crosshair; }
 #modeHint { color: var(--quiet); font-size: .86rem; flex: 1; }
 #original { margin-left: auto; }
 .readout { color: var(--quiet); font-variant-numeric: tabular-nums; margin: 5px 14px 11px; }
+.pair-read { min-height: 1.2em; }
+.pair-read dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 0; }
+.pair-read dt { color: #45614d; font-weight: 650; }
+.pair-read dd { margin: 0; }
+.pair-note { margin: 0 0 9px; color: var(--quiet); font-size: .8rem; line-height: 1.4; }
+.controls .pair-second { margin-top: 8px; }
+.pair-stats { font-size: .78rem; color: var(--quiet); font-weight: 600; }
+.pair-stats:empty { display: none; }
 .controls section { padding: 13px; border-bottom: 1px solid var(--line); }
 .controls section:last-child { border-bottom: 0; }
 .controls h2 { margin-bottom: 9px; }

@@ -28,6 +28,7 @@
             <button data-view="capture" aria-pressed="true">Capture</button>
             <button data-view="reference" aria-pressed="false">Reference</button>
             <button data-view="residual" aria-pressed="false">Residual map</button>
+            <button data-view="pair" aria-pressed="false">Opposite pair</button>
           </div>
         </div>
         <div class="stage" id="stage">
@@ -43,6 +44,7 @@
           <a id="original" download>Download capture</a>
         </div>
         <p id="probeRead" class="readout" aria-live="polite"></p>
+        <p id="pairRead" class="readout pair-read" aria-live="polite"></p>
       </article>
       <aside class="controls">
         <section>
@@ -58,6 +60,12 @@
           </div>
           <div class="legend"><span class="warm"></span>Darker <span class="cool"></span>Brighter</div>
           <div id="zones" class="zone-list"></div>
+        </section>
+        <section>
+          <div class="section-title"><h2>Opposite pair</h2><span id="pairStats" class="pair-stats"></span></div>
+          <p class="pair-note">Two captures of opposite previous patterns, both cleared to white. Only squares that reverse between the two photos are painted.</p>
+          <label>First photo<select id="pairFirst"></select></label>
+          <label class="pair-second">Second photo<select id="pairSecond"></select></label>
         </section>
         <section>
           <h2>Next capture</h2>

@@ -6,7 +6,7 @@ from flask import Blueprint, jsonify, render_template, request, send_file
 
 from image_lab.validation import Invalid
 
-from . import demo, frame, model, output, residual
+from . import demo, frame, model, output, pairing, residual
 from .store import Library
 
 
@@ -79,6 +79,15 @@ def install(app, root):
         revision = model.number(request.form.get("revision"), 0, 10**9, "Batch revision", True)
         return jsonify(library.append(batch_id, revision, photo, name, request.form)), 201
 
+    def pair_paths(record, settings):
+        chosen = settings["pair"]
+        if chosen is None:
+            raise Invalid("Choose the two opposite-pattern photos to compare.")
+        reference_path, _ = library.paths(record, None)
+        _, first = library.paths(record, chosen["first"])
+        _, second = library.paths(record, chosen["second"])
+        return reference_path, first, second
+
     @desk.get("/batches/<batch_id>/reference.png")
     def reference(batch_id):
         record = picture_data(batch_id)
@@ -101,6 +110,36 @@ def install(app, root):
         record = picture_data(batch_id)
         settings = model.settings(record, body().get("settings", {}))
         return jsonify(residual.measure(record, settings, library, all_frames=True))
+
+    @desk.post("/batches/<batch_id>/pair/measure")
+    def pair_measure(batch_id):
+        record = picture_data(batch_id)
+        settings = model.settings(record, body().get("settings", {}))
+        reference_path, first_path, second_path = pair_paths(record, settings)
+        region = pairing.region_for(record, settings)
+        result = pairing.analyse(residual.pixels(reference_path), residual.pixels(first_path),
+                                 residual.pixels(second_path), settings["limit"], region)
+        return jsonify(pairing.summary(result))
+
+    @desk.post("/batches/<batch_id>/pair/map")
+    def pair_map(batch_id):
+        record = picture_data(batch_id)
+        settings = model.settings(record, body().get("settings", {}))
+        reference_path, first_path, second_path = pair_paths(record, settings)
+        return image_download(pairing.overlay(reference_path, first_path, second_path, record, settings),
+                              "pair-residual.png", False)
+
+    @desk.post("/batches/<batch_id>/pair/point")
+    def pair_point(batch_id):
+        record = picture_data(batch_id)
+        change = body()
+        settings = model.settings(record, {"zones": change.get("zones", []),
+                                           "limit": change.get("limit", 8),
+                                           "pair": change.get("pair")})
+        reference_path, first_path, second_path = pair_paths(record, settings)
+        point = model.point(change.get("point"), record["width"], record["height"])
+        return jsonify(pairing.probe(reference_path, first_path, second_path, point,
+                                     settings["limit"], pairing.region_for(record, settings)))
 
     @desk.post("/batches/<batch_id>/map")
     def map_image(batch_id):
