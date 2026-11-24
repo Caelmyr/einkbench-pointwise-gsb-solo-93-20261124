@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EInkBench · Refresh inspection</title>
+<link rel="stylesheet" href="/static/ink.css">
+<script type="module" src="/static/ink.js"></script>
+</head>
+<body>
+<header class="mast">
+  <div class="wordmark"><span class="mark" aria-hidden="true"></span>EInkBench</div>
+  <span class="app-title">Refresh inspection</span>
+  <a href="/prepare">Photo preparation ↗</a>
+</header>
+<main>
+  <section class="toolbar">
+    <label>Inspection batch<select id="batches"><option value="">Choose a batch</option></select></label>
+    <button id="demo" class="primary">Open practice sequence</button>
+    <button id="importReference">Import reference</button>
+    <button id="save" class="edit" disabled>Save setup</button>
+  </section>
+  <p id="status" class="status" role="status" aria-live="polite">Open a synthetic practice sequence or import a settled white reference.</p>
+  <section id="desk" hidden>
+    <div class="work">
+      <article class="viewer">
+        <div class="panel-title"><div><span class="tag" id="kind"></span><h1 id="title"></h1></div>
+          <div class="tabs" aria-label="Image view">
+            <button data-view="capture" aria-pressed="true">Capture</button>
+            <button data-view="reference" aria-pressed="false">Reference</button>
+            <button data-view="residual" aria-pressed="false">Residual map</button>
+          </div>
+        </div>
+        <div class="stage" id="stage">
+          <figure id="board">
+            <img id="image" alt="Inspection image from the current batch" draggable="false">
+            <div id="marks" aria-hidden="true"></div>
+          </figure>
+        </div>
+        <div class="image-tools">
+          <button id="mark" class="edit">Add zone</button>
+          <button id="probe">Probe pixel</button>
+          <span id="modeHint">Mark two corners to define an inspection zone.</span>
+          <a id="original" download>Download capture</a>
+        </div>
+        <p id="probeRead" class="readout" aria-live="polite"></p>
+      </article>
+      <aside class="controls">
+        <section>
+          <div class="section-title"><h2>Capture</h2><button id="addCapture" class="small edit">Add</button></div>
+          <label>Active photo<select id="capture"></select></label>
+          <div id="cameraMeta" class="camera-meta"></div>
+        </section>
+        <section>
+          <h2>Measurement</h2>
+          <div class="microgrid">
+            <label>Threshold · DN<input id="limit" class="edit" type="number" min="1" max="255" step="1"></label>
+            <label>Map gain<input id="gain" class="edit" type="number" min="1" max="20" step="1"></label>
+          </div>
+          <div class="legend"><span class="warm"></span>Darker <span class="cool"></span>Brighter</div>
+          <div id="zones" class="zone-list"></div>
+        </section>
+        <section>
+          <h2>Next capture</h2>
+          <label>Current wait · ms<input id="delay" class="edit" type="number" min="0" max="60000" step="1"></label>
+        </section>
+        <section>
+          <div class="section-title"><h2>Reports</h2><button id="retain" class="small edit">Save report</button></div>
+          <select id="reports" aria-label="Open a report"></select>
+          <div class="report-links" id="reportLinks" hidden>
+            <a id="csv" download>Measurements CSV</a><a id="map" download>Map PNG</a>
+          </div>
+        </section>
+      </aside>
+    </div>
+    <section class="timeline">
+      <div class="section-title"><h2>Residual by wait</h2><span>95th percentile · absolute luminance difference</span></div>
+      <canvas id="graph" width="1000" height="210" aria-label="95th percentile residual against elapsed time"></canvas>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th scope="col">Wait</th><th scope="col">Previous pattern</th><th scope="col">Trial</th><th scope="col">Zone</th><th scope="col">Signed mean</th><th scope="col">P95</th><th scope="col">Darker area</th><th scope="col">Brighter area</th></tr></thead>
+          <tbody id="measurements"></tbody>
+        </table>
+      </div>
+    </section>
+  </section>
+</main>
+<dialog id="referenceDialog">
+  <form id="referenceForm">
+    <h2>Import a settled white reference</h2>
+    <label>Batch name<input name="title" maxlength="120" placeholder="Display sample or serial"></label>
+    <label>Reference photo<input name="reference" type="file" accept="image/png,image/jpeg" required></label>
+    <div class="dialog-actions"><button type="button" class="cancel">Cancel</button><button class="primary" type="submit">Create batch</button></div>
+  </form>
+</dialog>
+<dialog id="captureDialog">
+  <form id="captureForm">
+    <h2>Add a refresh capture</h2>
+    <label>Photo after clearing to white<input name="capture" type="file" accept="image/png,image/jpeg" required></label>
+    <label>Previous pattern<select name="pattern">{% for pattern in patterns %}<option>{{ pattern }}</option>{% endfor %}</select></label>
+    <div class="microgrid">
+      <label>Wait · ms<input name="wait" type="number" min="0" max="60000" required></label>
+      <label>Trial<input name="trial" type="number" min="1" max="100" value="1" required></label>
+    </div>
+    <div class="dialog-actions"><button type="button" class="cancel">Cancel</button><button class="primary" type="submit">Add capture</button></div>
+  </form>
+</dialog>
+<dialog id="reportDialog">
+  <form id="reportForm">
+    <h2>Save an inspection report</h2>
+    <label>Report name<input name="name" maxlength="120" value="Refresh inspection" required></label>
+    <div class="dialog-actions"><button type="button" class="cancel">Cancel</button><button class="primary" type="submit">Save report</button></div>
+  </form>
+</dialog>
+</body>
+</html>

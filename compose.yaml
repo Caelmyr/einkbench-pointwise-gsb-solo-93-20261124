@@ -1,0 +1,23 @@
+name: solo96-inkbench
+services:
+  desk:
+    build:
+      context: .
+      args:
+        INKBENCH_RUNTIME_IMAGE: ${INKBENCH_RUNTIME_IMAGE:-python:3.12-slim}
+    image: ${INKBENCH_IMAGE:-solo96-inkbench:1.0}
+    network_mode: bridge
+    environment:
+      OPENBLAS_NUM_THREADS: 1
+      OMP_NUM_THREADS: 1
+    ports:
+      - "127.0.0.1:${INKBENCH_PORT:-19896}:8000"
+    volumes:
+      - ink-data:/var/lib/inkbench
+    healthcheck:
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; assert urlopen('http://127.0.0.1:8000/ink/health', timeout=3).status == 200"]
+      interval: 3s
+      timeout: 4s
+      retries: 12
+volumes:
+  ink-data:
