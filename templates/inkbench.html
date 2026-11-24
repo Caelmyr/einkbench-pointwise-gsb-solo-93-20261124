@@ -62,6 +62,15 @@
         <section>
           <h2>Next capture</h2>
           <label>Current wait · ms<input id="delay" class="edit" type="number" min="0" max="60000" step="1"></label>
+          <div class="advisor">
+            <div class="section-title"><h2>Next wait advisor</h2></div>
+            <div id="advisorScope" class="advisor-scope muted"></div>
+            <label>临界带宽 · ±DN<input id="criticalBand" type="number" min="0" max="64" step="0.5" value="1"></label>
+            <div id="advisorZones" class="advisor-zones"></div>
+            <div id="advisorPick" class="advisor-pick muted"></div>
+            <button id="adoptWait" class="primary" type="button" disabled>采用推荐时间</button>
+            <p class="advisor-note muted">只统计与当前照片同一前态、同一轮（trial）的实拍；临界带宽内的 P95 不参与判定。采用仅把等待时间带入加照窗，照片加入后才会产生新读数。</p>
+          </div>
         </section>
         <section>
           <div class="section-title"><h2>Reports</h2><button id="retain" class="small edit">Save report</button></div>
@@ -74,7 +83,14 @@
     </div>
     <section class="timeline">
       <div class="section-title"><h2>Residual by wait</h2><span>95th percentile · absolute luminance difference</span></div>
-      <canvas id="graph" width="1000" height="210" aria-label="95th percentile residual against elapsed time"></canvas>
+      <div class="graph-legend">
+        <span><i class="dot over"></i>确实超限</span>
+        <span><i class="dot pass"></i>确实过关</span>
+        <span><i class="dot hold"></i>临界带内 · 暂不判</span>
+        <span><i class="bracket-swatch"></i>夹住的待查时间范围（点击端点回到照片）</span>
+        <span><i class="rec-swatch"></i>推荐的下一张等待</span>
+      </div>
+      <canvas id="graph" width="1000" height="236" aria-label="95th percentile residual against elapsed time"></canvas>
       <div class="table-scroll">
         <table>
           <thead><tr><th scope="col">Wait</th><th scope="col">Previous pattern</th><th scope="col">Trial</th><th scope="col">Zone</th><th scope="col">Signed mean</th><th scope="col">P95</th><th scope="col">Darker area</th><th scope="col">Brighter area</th></tr></thead>
